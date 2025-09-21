@@ -5,10 +5,29 @@
 // SPDX-License-Identifier: MIT
 //
 
+#ifndef ASSERTIONS_ASSERT_H
+#define ASSERTIONS_ASSERT_H
+
 #include <iostream>
 #include <sstream>
 
 namespace assertions {
+    template<typename T = void> struct handler;
+
+    template<> struct handler<void> {
+        static bool notify(const char* file, const int line, const char* function,
+            const char* expr, const char* details) {
+            std::cerr << file << ':' << line << ": " << function
+                << ": Assertion `" << expr << "'"
+                << " failed with `" << details << "'." << std::endl; 
+            return false;
+        }
+
+        static void terminate() {
+            std::abort();
+        }
+    };
+
     template<typename T> struct operator_traits;
 
     struct context {
@@ -137,6 +156,12 @@ namespace assertions {
     template<typename T> auto operator << (literal<T>&& lhs, capture) { return lhs; }
 }
 
+#endif
+
+#ifndef ASSERTIONS_HANDLER_TAG
+#define ASSERTIONS_HANDLER_TAG void
+#endif
+
 #undef assert
 #define assert(expr) \
     do { \
@@ -144,13 +169,10 @@ namespace assertions {
         if (!static_cast<bool>(expr)) { \
             tracing_context ctx; \
             eval(ctx, capture() << expr << capture()); \
-            std::cerr \
-                << __FILE__ << ':' \
-                << __LINE__ << ": " \
-                << __PRETTY_FUNCTION__ \
-                << ": Assertion `" << #expr << '\'' \
-                << "' failed with `" << ctx.stream.str() << "'." \
-                << std::endl; \
+            if (!handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
+                #expr, ctx.stream.str().c_str())) { \
+                handler<ASSERTIONS_HANDLER_TAG>::terminate(); \
+            } \
         } \
     } while(0)
 
