@@ -15,27 +15,21 @@ namespace assertions {
     template<typename T = void> struct handler;
 
     template<> struct handler<void> {
-        static bool notify(const char* file, const int line, const char* function,
+        static void format(std::ostream& stream, const char* file, const int line, const char* function,
             const char* expr, const char* details) {
-            std::cerr << file << ':' << line << ": " << function
-                << ": Assertion `" << expr << "'"
-                << " failed with `" << details << "'." << std::endl; 
-            return false;
+            stream << file << ':' << line << ": " << function << ": "
+                << "Assertion `" << expr << "'"
+                << " failed with `" << details << "'.";
         }
 
-        static void terminate() {
+        static void notify(const char* file, const int line, const char* function,
+            const char* expr, const char* details) {
+            format(std::cerr, file, line, function, expr, details); std::cerr << std::endl;
             std::abort();
         }
     };
 
     template<typename T> struct operator_traits;
-
-    struct context {
-        void push() {}
-        template<typename T> void emit(T value) {}
-        template<typename T> void call() {}
-        void pop() {}
-    };
 
     struct tracing_context {
         void push() { if (depth++) stream << '('; }
@@ -158,21 +152,15 @@ namespace assertions {
 
 #endif
 
-#ifndef ASSERTIONS_HANDLER_TAG
-#define ASSERTIONS_HANDLER_TAG void
-#endif
-
 #undef assert
-#define assert(expr) \
+#define assert(expr, ...) \
     do { \
         using namespace assertions; \
         if (!static_cast<bool>(expr)) { \
             tracing_context ctx; \
             eval(ctx, capture() << expr << capture()); \
-            if (!handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
-                #expr, ctx.stream.str().c_str())) { \
-                handler<ASSERTIONS_HANDLER_TAG>::terminate(); \
-            } \
+            handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
+                #expr, ctx.stream.str().c_str()); \
         } \
     } while(0)
 
