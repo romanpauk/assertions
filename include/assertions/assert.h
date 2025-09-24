@@ -16,15 +16,16 @@ namespace assertions {
 
     template<> struct handler<void> {
         static void format(std::ostream& stream, const char* file, const int line, const char* function,
-            const char* expr, const char* details) {
-            stream << file << ':' << line << ": " << function << ": "
-                << "Assertion `" << expr << "'"
-                << " failed with `" << details << "'.";
+            const char* msg, const char* expr, const char* ctx) {
+            stream << file << ':' << line << ": " << function << ": ";
+            if (msg) stream << msg << ": ";
+            stream << "Assertion `" << expr << "'"
+                << " failed with `" << ctx << "'.";
         }
 
         static void notify(const char* file, const int line, const char* function,
-            const char* expr, const char* details) {
-            format(std::cerr, file, line, function, expr, details); std::cerr << std::endl;
+            const char* msg, const char* expr, const char* ctx) {
+            format(std::cerr, file, line, function, msg, expr, ctx); std::cerr << std::endl;
             std::abort();
         }
     };
@@ -159,8 +160,9 @@ namespace assertions {
         if (!static_cast<bool>(expr)) { \
             tracing_context ctx; \
             eval(ctx, capture() << expr << capture()); \
+            const char* msg = (sizeof(#__VA_ARGS__) - 1) > 0 ? #__VA_ARGS__ : nullptr; \
             handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
-                #expr, ctx.stream.str().c_str()); \
+                msg, #expr, ctx.stream.str().c_str()); \
         } \
     } while(0)
 

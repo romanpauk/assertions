@@ -4,9 +4,9 @@
 namespace assertions {
     template<> struct handler<int> {
         static void notify(const char* file, const int line, const char* function,
-            const char* expr, const char* details) {
+            const char* msg, const char* expr, const char* ctx) {
             std::stringstream stream;
-            handler<void>::format(stream, file, line, function, expr, details);
+            handler<void>::format(stream, file, line, function, msg, expr, ctx);
             throw std::runtime_error(stream.str());
         }
     };
