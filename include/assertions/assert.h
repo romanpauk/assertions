@@ -108,7 +108,7 @@ namespace assertions {
 
     template<typename LHS, typename RHS>
     auto operator < (LHS lhs, RHS rhs) {
-        return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
+return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
     }
 
     template<typename LHS, typename RHS>
@@ -153,7 +153,21 @@ namespace assertions {
 
 #endif
 
+#if defined(assert)
 #undef assert
+#endif
+
+#if defined(ASSERTIONS_ACTIVATE_INTERNAL)
+#error "unexpected definition of ASSERTIONS_ACTIVATE_INTERNAL"
+#endif
+
+#if defined(ASSERTIONS_ENABLE)
+#define ASSERTIONS_ACTIVATE_INTERNAL
+#elif !defined(NDEBUG)
+#define ASSERTIONS_ACTIVATE_INTERNAL
+#endif
+
+#if defined(ASSERTIONS_ACTIVATE_INTERNAL)
 #define assert(expr, ...) \
     do { \
         using namespace assertions; \
@@ -165,4 +179,9 @@ namespace assertions {
                 msg, #expr, ctx.stream.str().c_str()); \
         } \
     } while(0)
+#else
+#define assert(expr, ...) ((void)0)
+#endif
+
+#undef ASSERTIONS_ACTIVATE_INTERNAL
 
