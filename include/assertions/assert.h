@@ -9,6 +9,7 @@
 #define ASSERTIONS_ASSERT_H
 
 #include <iostream>
+#include <functional>
 #include <sstream>
 
 namespace assertions {
@@ -108,7 +109,7 @@ namespace assertions {
 
     template<typename LHS, typename RHS>
     auto operator < (LHS lhs, RHS rhs) {
-return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
+        return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
     }
 
     template<typename LHS, typename RHS>
@@ -153,10 +154,6 @@ return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
 
 #endif
 
-#if defined(assert)
-#undef assert
-#endif
-
 #if defined(ASSERTIONS_ACTIVATE_INTERNAL)
 #error "unexpected definition of ASSERTIONS_ACTIVATE_INTERNAL"
 #endif
@@ -168,19 +165,50 @@ return binary_expression<LHS, RHS, std::less<>>(lhs, rhs);
 #endif
 
 #if defined(ASSERTIONS_ACTIVATE_INTERNAL)
-#define assert(expr, ...) \
+
+#if !defined(ASSERTIONS_HANDLER_TAG)
+#define ASSERTIONS_HANDLER_TAG void
+#endif
+
+#if defined(_MSC_VER)
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif
+
+#define ASSERT_CAT(a, b) a##b
+#define ASSERT_SELECT(NAME, ...) ASSERT_CAT(NAME, __VA_ARGS__)
+
+#define ASSERT_VA_NUM_ARGS_IMPL(_1, _2, N, ...) N
+#define ASSERT_VA_NUM_ARGS(...) ASSERT_VA_NUM_ARGS_IMPL(__VA_ARGS__, 2, 1)
+
+#if defined(assert)
+#undef assert
+#endif
+
+#define assert(...) ASSERT_SELECT(ASSERTIONS_ASSERT_, ASSERT_VA_NUM_ARGS(__VA_ARGS__))(__VA_ARGS__)
+
+#define ASSERTIONS_ASSERT_1(expr) \
     do { \
         using namespace assertions; \
         if (!static_cast<bool>(expr)) { \
             tracing_context ctx; \
             eval(ctx, capture() << expr << capture()); \
-            const char* msg = (sizeof(#__VA_ARGS__) - 1) > 0 ? #__VA_ARGS__ : nullptr; \
+            handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
+                nullptr, #expr, ctx.stream.str().c_str()); \
+        } \
+    } while(0)
+
+#define ASSERTIONS_ASSERT_2(expr, msg) \
+    do { \
+        using namespace assertions; \
+        if (!static_cast<bool>(expr)) { \
+            tracing_context ctx; \
+            eval(ctx, capture() << expr << capture()); \
             handler<ASSERTIONS_HANDLER_TAG>::notify(__FILE__, __LINE__, __PRETTY_FUNCTION__, \
                 msg, #expr, ctx.stream.str().c_str()); \
         } \
     } while(0)
 #else
-#define assert(expr, ...) ((void)0)
+#define assert(...) ((void)0)
 #endif
 
 #undef ASSERTIONS_ACTIVATE_INTERNAL
