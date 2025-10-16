@@ -1,0 +1,90 @@
+name: Build
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily
+  pull_request:
+  push:
+    branches:
+      - master
+env:
+  JOBS: 4
+
+jobs:
+  build-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Debug, Release]
+        os: [ubuntu-24.04]
+        compiler: [
+          { CC: gcc-12, CXX: g++-12, STD: 17 },
+          { CC: gcc-12, CXX: g++-12, STD: 20 },
+          { CC: clang-17, CXX: clang++-17, STD: 17 },
+          { CC: clang-17, CXX: clang++-17, STD: 20 }
+        ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: CCache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.config }}-${{ matrix.compiler.CXX }}-${{ matrix.compiler.STD }}
+      - name: Configure
+        env:
+            CXX: ${{ matrix.compiler.CXX }}
+            CC: ${{ matrix.compiler.CC }}
+        run: |
+            which ${{ matrix.compiler.CC }} || sudo apt install ${{ matrix.compiler.CC }} || true
+            which ${{ matrix.compiler.CXX }} || sudo apt install ${{ matrix.compiler.CXX }} || true
+            cmake -S . -B build -DASSERTIONS_DEVELOPMENT_MODE=ON -DASSERTIONS_CCACHE=ON -DASSERTIONS_TREAT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DCMAKE_CXX_STANDARD=${{ matrix.compiler.STD }}
+      - name: Check Formatting
+        env:
+          PIP_BREAK_SYSTEM_PACKAGES: 1
+        run: |
+            python -m pip install mdformat
+            cmake --build build -t md-verify
+      - name: Build
+        run: |
+            cmake --build build -j ${{ env.JOBS }}
+      - name: Test
+        env:
+          ASAN_OPTIONS: use_sigaltstack=false
+        run: |
+            cd build && ctest --verbose
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Debug, Release]
+        os: [windows-2022]
+        std: [17, 20]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup MSVC Developer Command Prompt
+        uses: TheMrMilchmann/setup-msvc-dev@v3
+        with:
+          arch: x64
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: CCache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.config }}-${{ matrix.std }}
+      - name: Configure
+        run: |
+            cmake -S . -B build -DASSERTIONS_DEVELOPMENT_MODE=ON -DASSERTIONS_CCACHE=ON -DASSERTIONS_TREAT_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DCMAKE_CXX_STANDARD=${{ matrix.std }}
+      - name: Check Formatting
+        run: |
+            python3 -m pip install mdformat
+            cmake --build build -t md-verify
+      - name: Build
+        run: |
+            cmake --build build --config ${{ matrix.config }} -j ${{ env.JOBS }}
+      - name: Test
+        run: |
+            build/${{ matrix.config }}/assertions_test
